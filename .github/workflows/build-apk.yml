@@ -1,0 +1,72 @@
+name: Build NEXORA APK
+
+# Se déclenche manuellement (onglet "Actions" > "Build NEXORA APK" > "Run workflow"),
+# ou automatiquement à chaque tag "v*" (ex: v1.0.0) pour publier une nouvelle version.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # nécessaire pour créer une Release et y attacher l'APK
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer Java (requis par Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Le SDK Android est déjà préinstallé sur les runners GitHub Actions
+      # (contrairement à l'environnement sandboxé où ce projet a été préparé),
+      # donc aucune installation supplémentaire n'est nécessaire ici.
+
+      - name: Installer les dépendances npm
+        run: npm install
+
+      - name: Synchroniser le projet Capacitor
+        run: npx cap sync android
+
+      - name: Autoriser l'exécution de gradlew
+        run: chmod +x android/gradlew
+
+      - name: Compiler l'APK (debug, installable directement)
+        run: cd android && ./gradlew assembleDebug --no-daemon
+
+      - name: Déterminer le nom de version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=build-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Renommer l'APK
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/NEXORA-${{ steps.version.outputs.tag }}.apk
+
+      # Publié comme Release (pas comme "artifact" Actions) : ne consomme pas
+      # le quota de stockage Actions/Packages, fonctionne aussi sur dépôt privé.
+      - name: Publier en Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "NEXORA ${{ steps.version.outputs.tag }}"
+          files: out/NEXORA-${{ steps.version.outputs.tag }}.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

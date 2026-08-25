@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NEXORA — Pilotez tous vos business, un seul endroit.</title>
+<link rel="icon" href="assets/logo.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div id="app">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="brand">
+      <img src="assets/logo-mark.png" alt="NEXORA" class="brand-logo" />
+      <div class="brand-text">
+        <span class="brand-name">NEXORA</span>
+        <span class="brand-tag">Gérer. Connecter. Propulser.</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section-label">Projets</div>
+    <div id="project-nav-list" class="project-nav-list"><!-- injecté --></div>
+    <button id="btn-new-project" class="btn-ghost btn-new-project">+ Nouveau projet</button>
+
+    <div class="sidebar-spacer"></div>
+    <button id="btn-global-dashboard" class="nav-item nav-item-global">🏠 Vue d'ensemble</button>
+    <button id="btn-about" class="nav-item nav-item-about">ℹ️ À propos</button>
+    <button onclick="showServerSetupModal(false)" class="nav-item">🌐 Serveur</button>
+
+    <div id="network-status" class="network-status online">
+      <span class="dot"></span> <span id="network-status-text">En ligne</span>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="main" id="main-content">
+    <!-- Rempli dynamiquement par app.js -->
+  </main>
+</div>
+
+<!-- Modal générique -->
+<div id="modal-backdrop" class="modal-backdrop hidden">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+
+<script src="storage-local.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
