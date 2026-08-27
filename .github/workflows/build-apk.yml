@@ -21,13 +21,13 @@ jobs:
       - name: Installer Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Installer Java (requis par Gradle)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       # Le SDK Android est déjà préinstallé sur les runners GitHub Actions
       # (contrairement à l'environnement sandboxé où ce projet a été préparé),
