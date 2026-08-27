@@ -10,8 +10,11 @@
 <body>
 
 <div id="app">
+  <!-- Overlay assombri derrière la sidebar quand elle est ouverte en mode tiroir (mobile) -->
+  <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
   <!-- Sidebar -->
-  <nav class="sidebar">
+  <nav class="sidebar" id="sidebar">
     <div class="brand">
       <img src="assets/logo-mark.png" alt="NEXORA" class="brand-logo" />
       <div class="brand-text">
@@ -38,6 +41,11 @@
   <main class="main" id="main-content">
     <!-- Rempli dynamiquement par app.js -->
   </main>
+
+  <!-- En dehors de #main-content : ce dernier est entièrement réécrit à
+       chaque changement de vue par app.js, ce bouton doit donc vivre à
+       côté pour ne jamais être effacé. -->
+  <button id="menu-toggle" class="menu-toggle" aria-label="Ouvrir le menu">☰</button>
 </div>
 
 <!-- Modal générique -->

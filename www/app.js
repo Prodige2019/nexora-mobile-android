@@ -117,17 +117,39 @@ function renderSidebarNav() {
     )
     .join('');
   list.querySelectorAll('.project-nav-item').forEach((btn) => {
-    btn.addEventListener('click', () => openProject(btn.dataset.id));
+    btn.addEventListener('click', () => {
+      openProject(btn.dataset.id);
+      closeSidebar();
+    });
   });
 }
+
+// ---------------------------------------------------------------
+// Sidebar en tiroir (mobile) : ouverte/fermée via le bouton ☰ et l'overlay.
+// ---------------------------------------------------------------
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-backdrop').classList.add('visible');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('visible');
+}
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.contains('open') ? closeSidebar() : openSidebar();
+}
+document.getElementById('menu-toggle').addEventListener('click', toggleSidebar);
+document.getElementById('sidebar-backdrop').addEventListener('click', closeSidebar);
 
 document.getElementById('btn-global-dashboard').addEventListener('click', () => {
   state.view = 'global';
   render();
+  closeSidebar();
 });
 document.getElementById('btn-about').addEventListener('click', () => {
   state.view = 'about';
   render();
+  closeSidebar();
 });
 document.getElementById('btn-new-project').addEventListener('click', showNewProjectModal);
 

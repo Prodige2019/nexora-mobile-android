@@ -57,7 +57,38 @@ button, input, select, textarea { font-family: inherit; }
   display: flex;
   height: 100vh;
   overflow: hidden;
+  position: relative;
 }
+
+/* Bouton menu (hamburger) — masqué par défaut, visible seulement sous le
+   seuil mobile où la sidebar devient un tiroir escamotable. */
+.menu-toggle {
+  display: none;
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 80;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--navy-800);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(4,9,18,0.6);
+  z-index: 90;
+}
+.sidebar-backdrop.visible { display: block; }
 
 /* ============================== Sidebar ============================== */
 
@@ -69,6 +100,7 @@ button, input, select, textarea { font-family: inherit; }
   display: flex;
   flex-direction: column;
   padding: 22px 16px;
+  overflow-y: auto;
 }
 
 .brand {
@@ -458,10 +490,80 @@ input:focus, select:focus, textarea:focus { border-color: var(--gold); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--navy-700); border-radius: 4px; }
 
-/* Responsive */
-@media (max-width: 900px) {
+/* Tables : le contenu peut être plus large que l'écran (beaucoup de
+   colonnes) — on scrolle horizontalement à l'intérieur d'un wrapper au
+   lieu de casser toute la mise en page de la page. */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll table { min-width: 560px; }
+
+/* ============================== Responsive ============================== */
+
+/* Tablette : la sidebar rétrécit mais reste visible en permanence. */
+@media (max-width: 1024px) {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
-  .grid-3 { grid-template-columns: repeat(2, 1fr); }
-  .sidebar { width: 210px; }
-  .main { padding: 20px; }
+}
+
+/* Mobile : la sidebar devient un tiroir escamotable (masqué par défaut,
+   ouvert via le bouton menu), et tout le contenu s'empile en 1 colonne. */
+@media (max-width: 760px) {
+  .menu-toggle { display: flex; }
+
+  #app { overflow: visible; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    width: min(80vw, 300px);
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: 20px 0 40px rgba(0,0,0,0.4);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .main {
+    padding: 16px;
+    padding-top: 64px;
+    width: 100%;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .page-header > div:last-child,
+  .page-header > .btn,
+  .page-header > .btn-gold {
+    width: 100%;
+  }
+  .page-header > div[style*="display:flex"] {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+
+  .tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .tab-btn { white-space: nowrap; }
+
+  .modal { width: 92vw; padding: 20px; }
+  .form-row { flex-direction: column; gap: 0; }
+
+  .chat-wrap { height: 68vh; }
+  .chat-bubble { max-width: 88%; }
+
+  .project-card { padding: 16px; }
+}
+
+@media (max-width: 420px) {
+  .page-title { font-size: 21px; }
+  .brand-name { font-size: 16px; }
+  .grid-metric .metric-value, .card-metric .metric-value { font-size: 21px; }
 }
