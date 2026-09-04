@@ -944,6 +944,16 @@ function showServerSetupModal(isFirstRun = false) {
       <label>Adresse du serveur (optionnel)</label>
       <input type="text" id="srv-url" placeholder="http://192.168.1.20:4000" value="${escapeAttr(getServerUrl())}" />
     </div>
+    <div class="form-group">
+      <button class="btn-ghost" id="srv-import" style="width:100%;" onclick="importFromServer()">
+        📥 Importer les projets depuis ce serveur
+      </button>
+      <p style="color:var(--text-muted); font-size:12px; line-height:1.5; margin-top:6px;">
+        Copie les projets, besoins, stock et transactions déjà présents sur ce serveur vers cet
+        appareil (les projets déjà existants ici, même nom, sont ignorés — pas de doublon).
+        Enregistrez d'abord l'adresse ci-dessus si ce n'est pas déjà fait.
+      </p>
+    </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">Annuler</button>
       <button class="btn btn-gold" id="srv-submit">Enregistrer</button>
@@ -952,11 +962,78 @@ function showServerSetupModal(isFirstRun = false) {
   document.getElementById('srv-submit').addEventListener('click', async () => {
     const url = document.getElementById('srv-url').value.trim();
     setServerUrl(url);
-    closeModal();
     toast(url ? 'Serveur IA enregistré.' : 'Serveur IA désactivé.');
     if (state.view === 'project' && state.currentTab === 'chat') renderProjectTab();
   });
 }
 window.showServerSetupModal = showServerSetupModal;
+
+// ---------------------------------------------------------------
+// Import depuis un serveur NEXORA distant (ex: instance Render) vers le
+// stockage local (IndexedDB) de cet appareil. Utile pour retrouver sur
+// mobile des projets déjà créés côté desktop/serveur. Les données restent
+// ensuite 100% locales sur le téléphone (pas de synchronisation continue).
+// ---------------------------------------------------------------
+async function importFromServer() {
+  const serverUrl = getServerUrl();
+  const btn = document.getElementById('srv-import');
+  if (!serverUrl) {
+    toast("Renseignez d'abord une adresse de serveur ci-dessus, puis Enregistrer.");
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Import en cours…'; }
+  try {
+    const remoteProjects = await fetch(`${serverUrl}/api/projects?includeArchived=true`).then((r) => {
+      if (!r.ok) throw new Error(`Le serveur a répondu ${r.status}`);
+      return r.json();
+    });
+    const localProjects = await api.listProjects();
+    const existingNames = new Set(localProjects.map((p) => p.name.trim().toLowerCase()));
+
+    let createdCount = 0, needCount = 0, stockCount = 0, txCount = 0, skipped = 0;
+
+    for (const rp of remoteProjects) {
+      if (existingNames.has(rp.name.trim().toLowerCase())) { skipped += 1; continue; }
+
+      const localProject = await api.createProject({
+        name: rp.name, category: rp.category, icon: rp.icon, color: rp.color, currency: rp.currency,
+      });
+      createdCount += 1;
+
+      const needs = await fetch(`${serverUrl}/api/projects/${rp.id}/needs`).then((r) => (r.ok ? r.json() : []));
+      for (const n of needs) {
+        await api.createNeed(localProject.id, { label: n.label, estimatedCost: n.estimatedCost, status: n.status });
+        needCount += 1;
+      }
+
+      const stockRes = await fetch(`${serverUrl}/api/projects/${rp.id}/stock`).then((r) => (r.ok ? r.json() : { items: [] }));
+      for (const s of stockRes.items || []) {
+        await api.createStock(localProject.id, {
+          name: s.name, quantity: s.quantity, alertThreshold: s.alertThreshold,
+          buyPrice: s.buyPrice, sellPrice: s.sellPrice, supplier: s.supplier,
+        });
+        stockCount += 1;
+      }
+
+      const txRes = await fetch(`${serverUrl}/api/projects/${rp.id}/transactions`).then((r) => (r.ok ? r.json() : { transactions: [] }));
+      for (const t of txRes.transactions || []) {
+        await api.createTransaction(localProject.id, {
+          type: t.type, label: t.label, category: t.category, amount: t.amount, date: t.date,
+        });
+        txCount += 1;
+      }
+    }
+
+    await refreshProjects();
+    render();
+    closeModal();
+    toast(`Import terminé : ${createdCount} projet(s) ajouté(s) (${needCount} besoins, ${stockCount} stock, ${txCount} transactions). ${skipped} déjà présent(s).`);
+  } catch (err) {
+    toast(`Erreur d'import : ${err.message}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Importer les projets depuis ce serveur'; }
+  }
+}
+window.importFromServer = importFromServer;
 
 bootstrap();
