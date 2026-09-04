@@ -1036,4 +1036,127 @@ async function importFromServer() {
 }
 window.importFromServer = importFromServer;
 
+// ---------------------------------------------------------------
+// Sauvegarde / restauration manuelle (indépendante de tout serveur).
+// Nécessaire car les données du mobile sont 100% locales : si le
+// téléphone est perdu/cassé, seule une sauvegarde faite à l'avance
+// permet de tout récupérer. Le format est un simple JSON copiable
+// (pas de dépendance à un plugin natif de fichiers/partage).
+// ---------------------------------------------------------------
+async function buildBackupPayload() {
+  const projects = await api.listProjects();
+  const payload = { version: 1, exportedAt: nowIsoLocal(), projects: [] };
+  for (const p of projects) {
+    const { transactions } = await api.listTransactions(p.id);
+    const { items: stockItems } = await api.listStock(p.id);
+    const needs = await api.listNeeds(p.id);
+    payload.projects.push({
+      name: p.name, category: p.category, icon: p.icon, color: p.color, currency: p.currency,
+      transactions: transactions.map((t) => ({ type: t.type, label: t.label, category: t.category, amount: t.amount, date: t.date })),
+      stockItems: stockItems.map((s) => ({ name: s.name, quantity: s.quantity, alertThreshold: s.alertThreshold, buyPrice: s.buyPrice, sellPrice: s.sellPrice, supplier: s.supplier })),
+      needs: needs.map((n) => ({ label: n.label, estimatedCost: n.estimatedCost, status: n.status })),
+    });
+  }
+  return payload;
+}
+function nowIsoLocal() { return new Date().toISOString(); }
+
+async function restoreFromBackupText(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error('Le texte collé n\'est pas un JSON valide.'); }
+  if (!data || !Array.isArray(data.projects)) throw new Error('Format de sauvegarde non reconnu.');
+
+  const localProjects = await api.listProjects();
+  const existingNames = new Set(localProjects.map((p) => p.name.trim().toLowerCase()));
+  let createdCount = 0, needCount = 0, stockCount = 0, txCount = 0, skipped = 0;
+
+  for (const rp of data.projects) {
+    if (existingNames.has((rp.name || '').trim().toLowerCase())) { skipped += 1; continue; }
+    const localProject = await api.createProject({ name: rp.name, category: rp.category, icon: rp.icon, color: rp.color, currency: rp.currency });
+    createdCount += 1;
+    for (const n of rp.needs || []) { await api.createNeed(localProject.id, n); needCount += 1; }
+    for (const s of rp.stockItems || []) { await api.createStock(localProject.id, s); stockCount += 1; }
+    for (const t of rp.transactions || []) { await api.createTransaction(localProject.id, t); txCount += 1; }
+  }
+  return { createdCount, needCount, stockCount, txCount, skipped };
+}
+
+function showBackupModal() {
+  openModal(`
+    <h3>💾 Sauvegarde &amp; restauration</h3>
+    <p style="color:var(--text-muted); font-size:13px; line-height:1.6;">
+      Vos données sont stockées uniquement sur cet appareil. En cas de perte ou
+      de changement de téléphone, seule une sauvegarde faite à l'avance permet
+      de tout récupérer — pensez à la refaire régulièrement.
+    </p>
+
+    <div class="form-group">
+      <button class="btn btn-gold" id="backup-export-btn" style="width:100%;">📤 Générer ma sauvegarde</button>
+    </div>
+    <div class="form-group" id="backup-export-result" style="display:none;">
+      <label>Copiez ce texte et enregistrez-le quelque part en sécurité (Google Drive, email à vous-même, notes...)</label>
+      <textarea id="backup-export-text" rows="6" readonly style="width:100%; font-family:monospace; font-size:11px;"></textarea>
+      <button class="btn-ghost" id="backup-copy-btn" style="width:100%; margin-top:6px;">📋 Copier</button>
+    </div>
+
+    <hr style="border-color:var(--border); margin:18px 0;" />
+
+    <div class="form-group">
+      <label>Restaurer depuis une sauvegarde (collez le texte copié précédemment)</label>
+      <textarea id="backup-restore-text" rows="6" placeholder='{"version":1,"projects":[...]}' style="width:100%; font-family:monospace; font-size:11px;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Fermer</button>
+      <button class="btn btn-gold" id="backup-restore-btn">♻️ Restaurer</button>
+    </div>
+  `);
+
+  document.getElementById('backup-export-btn').addEventListener('click', async (e) => {
+    const btn = e.target;
+    btn.disabled = true; btn.textContent = 'Génération…';
+    try {
+      const payload = await buildBackupPayload();
+      const text = JSON.stringify(payload);
+      document.getElementById('backup-export-text').value = text;
+      document.getElementById('backup-export-result').style.display = 'block';
+      toast(`Sauvegarde générée : ${payload.projects.length} projet(s).`);
+    } catch (err) {
+      toast(`Erreur : ${err.message}`);
+    } finally {
+      btn.disabled = false; btn.textContent = '📤 Générer ma sauvegarde';
+    }
+  });
+
+  document.getElementById('backup-copy-btn').addEventListener('click', async () => {
+    const textarea = document.getElementById('backup-export-text');
+    textarea.select();
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      toast('Copié dans le presse-papiers.');
+    } catch {
+      document.execCommand('copy');
+      toast('Copié.');
+    }
+  });
+
+  document.getElementById('backup-restore-btn').addEventListener('click', async (e) => {
+    const btn = e.target;
+    const text = document.getElementById('backup-restore-text').value.trim();
+    if (!text) { toast('Collez d\'abord le texte de sauvegarde.'); return; }
+    btn.disabled = true; btn.textContent = 'Restauration…';
+    try {
+      const res = await restoreFromBackupText(text);
+      await refreshProjects();
+      render();
+      closeModal();
+      toast(`Restauré : ${res.createdCount} projet(s) (${res.needCount} besoins, ${res.stockCount} stock, ${res.txCount} transactions). ${res.skipped} déjà présent(s).`);
+    } catch (err) {
+      toast(`Erreur : ${err.message}`);
+    } finally {
+      btn.disabled = false; btn.textContent = '♻️ Restaurer';
+    }
+  });
+}
+window.showBackupModal = showBackupModal;
+
 bootstrap();
